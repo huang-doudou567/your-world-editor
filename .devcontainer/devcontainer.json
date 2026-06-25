@@ -1,0 +1,22 @@
+{
+  "name": "你的世界编辑器",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+  "postCreateCommand": "sudo pip install -e . 2>/dev/null; echo '✅ 你的世界编辑器 — 环境就绪' && echo '' && echo '使用说明：' && echo '  1. 这个项目是一个 AI Agent Skill，不是独立 App' && echo '  2. SKILL.md 是主入口——把它加载到 Claude Code / Codex / Cursor 中' && echo '  3. Python 脚本在 scripts/ 目录下，用于事件接入、搜索和聚类' && echo '  4. 对 AI 说「搭建」，5 分钟搭好你自己的版本' && echo '' && echo '💡 如果你没有 Claude Code，可以：' && echo '  - 在本地终端运行: npm install -g @anthropic-ai/claude-code' && echo '  - 或者用 Cursor: 把 SKILL.md 放到项目目录' && echo '  - 或者用 Codex: 把 SKILL.md 放到项目目录'",
+  "customizations": {
+    "codespaces": {
+      "openFiles": [
+        "README.md",
+        "SKILL.md"
+      ]
+    },
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "yzhang.markdown-all-in-one"
+      ]
+    }
+  }
+}
