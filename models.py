@@ -24,6 +24,7 @@ class Event:
     title: str = ""              # 一句话标题
     text: str = ""               # 1-5 句描述
     source: str = "free_text"    # free_text | voice | image | link | document
+    emotion: str = "bright"       # colorful | bright | dark（情绪窗格分类）
     pattern_refs: list[str] = field(default_factory=list)  # 关联的模式条目名
     confidence: str = "medium"   # high | medium | low（模式匹配确信度）
     grounded: bool = True        # 可追溯到真实事件
