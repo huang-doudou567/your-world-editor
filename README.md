@@ -1,5 +1,7 @@
 # 你的世界编辑器
 
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/huang-doudou567/your-world-editor)
+
 > 一个 AI 驱动的自我认知操作系统
 >
 > 记录层降低摩擦 · 检索层对抗遗忘 · 洞察层跨越碎片 · 推演层向前看 · 情绪层增加情感维度
