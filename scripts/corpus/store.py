@@ -288,7 +288,11 @@ def append_journal_entry(
     entry_lines = []
     tag_str = f"[{event.tag}] " if event.tag else ""
     mode_str = f"{event.mode} " if event.mode else ""
-    title_line = f"{event.timestamp} · {tag_str}{mode_str}{event.title}"
+
+    # 情绪窗格 emoji
+    emotion_emoji = {"colorful": "🎨", "bright": "💡", "dark": "🌑"}.get(event.emotion, "")
+
+    title_line = f"{event.timestamp} · {tag_str}{mode_str}{emotion_emoji} {event.title}"
     entry_lines.append(title_line)
     if event.text:
         entry_lines.append(event.text)
