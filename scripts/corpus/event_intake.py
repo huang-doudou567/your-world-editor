@@ -165,6 +165,93 @@ def _generate_title(text: str, tag: str) -> str:
     return first[:50]
 
 
+# ── 情绪窗格分类 ──────────────────────────────────────────────────
+
+# 彩色窗格关键词
+_COLORFUL_KEYWORDS = [
+    "开心", "高兴", "兴奋", "温暖", "感恩", "有意义", "值得",
+    "顿悟", "灵感", "被理解", "被认可", "成就感", "幸福", "快乐",
+    "太棒了", "超好", "惊喜", "感动", "好运", "感谢", "庆祝",
+    "原来还可以这样", "想通了", "突破",
+]
+
+# 黑暗窗格关键词
+_DARK_KEYWORDS = [
+    "烦", "累死了", "愤怒", "不满", "失望", "孤独", "无力",
+    "害怕", "焦虑", "痛苦", "侮辱", "边界侵犯", "不被理解",
+    "伤心", "难过死了", "崩溃", "绝望", "被矮化", "不甘",
+    "为什么是我", "凭什么", "忍不了", "受不了", "抑郁",
+    "不信任", "被冒犯", "被忽视", "想哭", "失眠",
+]
+
+# 自我觉察词（即使有负面情绪，也可能是 insights 而非 pure dark）
+_SELF_AWARENESS_MARKERS = [
+    "我发现", "我意识到", "反思", "总结", "原来",
+    "看清楚", "想明白了", "想通了", "这就是",
+]
+
+
+def classify_emotion(text: str) -> dict:
+    """根据文本语义判定情绪窗格。
+
+    Returns:
+        {
+            "emotion": "colorful" | "bright" | "dark",
+            "confidence": "high" | "medium" | "low",
+            "reason": "分类依据的一句话说明",
+        }
+
+    设计原则：
+      - 默认 bright（中性日常），不强行分类
+      - 同时命中彩色和黑暗时，取出现次数更多的
+      - 有自我觉察标记的黑暗内容仍标 dark，但在 reason 中注明
+    """
+    colorful_count = sum(1 for kw in _COLORFUL_KEYWORDS if kw in text)
+    dark_count = sum(1 for kw in _DARK_KEYWORDS if kw in text)
+    has_self_awareness = any(m in text for m in _SELF_AWARENESS_MARKERS)
+
+    # 无明显情感关键词 → 默认明亮
+    if colorful_count == 0 and dark_count == 0:
+        return {
+            "emotion": "bright",
+            "confidence": "medium",
+            "reason": "未检测到明显情感关键词，默认归入明亮窗格",
+        }
+
+    # 彩色 > 黑暗
+    if colorful_count > dark_count:
+        return {
+            "emotion": "colorful",
+            "confidence": "high" if colorful_count >= 2 else "medium",
+            "reason": f"检测到 {colorful_count} 个积极情感信号",
+        }
+
+    # 黑暗 > 彩色
+    if dark_count > colorful_count:
+        note = ""
+        if has_self_awareness:
+            note = "（含自我觉察标记——用户可能在深度反思中）"
+        return {
+            "emotion": "dark",
+            "confidence": "high" if dark_count >= 2 else "medium",
+            "reason": f"检测到 {dark_count} 个负面情感信号{note}",
+        }
+
+    # 打平 → 词语强度决胜（等量时偏保守，默认 bright）
+    return {
+        "emotion": "bright",
+        "confidence": "low",
+        "reason": f"彩色和黑暗信号相等（各{colorful_count}个），默认归入明亮窗格",
+    }
+
+
+def classify_emotion_for_agent(text: str) -> str:
+    """给 Agent 一个情绪分类建议文本，方便 Agent 在对话中告知用户。"""
+    result = classify_emotion(text)
+    emoji = {"colorful": "🎨 彩色窗格", "bright": "💡 明亮窗格", "dark": "🌑 黑暗窗格"}
+    return f"{emoji[result['emotion']]} · {result['reason']}"
+
+
 def process_intake(
     text: str,
     system_dir: Path | str,
@@ -201,10 +288,15 @@ def process_intake(
     from scripts.corpus.store import append_journal_entry, resolve_system_dir
 
     system_dir = Path(system_dir) if not isinstance(system_dir, Path) else system_dir
+
+    # 情绪窗格分类
+    emotion_result = classify_emotion(text)
+
     event = Event(
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
         tag=assessment["suggested_tag"],
         mode=assessment["suggested_mode"],
+        emotion=emotion_result["emotion"],
         title=assessment["extracted_title"],
         text=text[:500],
         source="free_text",
