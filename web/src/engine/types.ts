@@ -121,10 +121,26 @@ export interface SystemStats {
 
 // ── Chat ──
 
+export interface SuggestedRecord {
+  title: string;
+  tag: string;
+  emotion: 'colorful' | 'bright' | 'dark';
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'ai' | 'system';
   content: string;
-  thinking?: string[];
+  thinking?: string;
   timestamp: string;
+  isStreaming?: boolean;
+  error?: string;
+  suggestedRecord?: SuggestedRecord;
+  recordSaved?: boolean;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens: number;
+    cache_creation_input_tokens: number;
+  };
 }
