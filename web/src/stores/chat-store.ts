@@ -126,7 +126,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const assistantId = uid();
     const assistantMsg: ChatMessage = {
       id: assistantId,
-      role: 'system',
+      role: 'ai',
       content: '',
       timestamp: new Date().toISOString(),
       isStreaming: true,
@@ -150,12 +150,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const ctxData = buildContextData({ entries, patterns, story, nickname });
       const contextBlock = formatContextBlock(ctxData);
 
-      const history = get().messages.filter(
-        (m) => !m.isStreaming && m.role !== 'system',
-      );
-
-      const apiMessages = history
-        .filter((m) => m.role === 'user' || m.role === 'ai')
+      const apiMessages = get().messages
+        .filter((m) => !m.isStreaming && (m.role === 'user' || m.role === 'ai'))
         .map((m) => ({
           role: (m.role === 'ai' ? 'assistant' : 'user') as 'user' | 'assistant',
           content: m.content,
