@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatStore } from '../stores/chat-store'
-import { Send, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus } from 'lucide-react'
 
 const PROMPTS = [
   '记一下，今天___',
@@ -18,13 +18,12 @@ const PROMPTS = [
 ]
 
 export default function ChatView() {
-  const { messages, input, setInput, send } = useChatStore()
+  const { messages, input, setInput, send, isStreaming, stopGenerating, retryMessage, clearMessages, recordUserMessage, saveSuggestedRecord } = useChatStore()
   const bottomRef = useRef<HTMLDivElement>(null)
   const [promptIdx, setPromptIdx] = useState(0)
 
   // ── Resizable input area ──
   const [inputHeight, setInputHeight] = useState(140)
-  const dragRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const startY = useRef(0)
   const startH = useRef(0)
@@ -72,16 +71,32 @@ export default function ChatView() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      send()
+      if (!isStreaming) send()
     }
   }
+
+  const hasMessages = messages.length > 1
 
   return (
     <div className="h-full flex flex-col">
       {/* Chat header */}
-      <div className="px-6 py-4 border-b border-line bg-cream/80 backdrop-blur flex-shrink-0">
-        <p className="font-serif text-lg text-navy">对话 · 你的世界编辑器</p>
-        <p className="text-xs text-muted mt-0.5">说话就行，不用记命令。试试「记一下」「搜一下」「推演一下」</p>
+      <div className="px-6 py-4 border-b border-line bg-cream/80 backdrop-blur flex-shrink-0 flex items-center justify-between">
+        <div>
+          <p className="font-serif text-lg text-navy">对话 · 你的世界编辑器</p>
+          <p className="text-xs text-muted mt-0.5">
+            {isStreaming ? '正在生成回复…' : '说话就行，不用记命令。试试「记一下」「搜一下」「推演一下」'}
+          </p>
+        </div>
+        {hasMessages && (
+          <button
+            onClick={clearMessages}
+            className="flex items-center gap-1 text-xs text-muted/50 hover:text-muted transition-colors px-2 py-1 rounded-md hover:bg-navy/5"
+            title="新对话"
+          >
+            <Plus size={14} />
+            新对话
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -89,24 +104,92 @@ export default function ChatView() {
         {messages.map(msg => (
           <div key={msg.id} className={`animate-fadeIn ${msg.role === 'user' ? 'flex justify-end' : ''}`}>
             {msg.role === 'user' ? (
-              <div className="max-w-[85%] md:max-w-[70%] bg-navy text-cream rounded-2xl rounded-br-md px-5 py-3">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              <div className="max-w-[85%] md:max-w-[70%] group relative">
+                <div className="bg-navy text-cream rounded-2xl rounded-br-md px-5 py-3">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                </div>
+                {/* 用户消息操作栏 */}
+                <div className="flex items-center gap-1 mt-1 justify-end">
+                  {msg.recordSaved ? (
+                    <span className="text-[10px] text-green-500/60 font-mono">✅ 已记录</span>
+                  ) : (
+                    <button
+                      onClick={() => recordUserMessage(msg.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 text-[10px] text-muted/40 hover:text-navy font-mono px-1"
+                      title="记下这条"
+                    >
+                      <Bookmark size={10} />
+                      记下
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="max-w-[85%] md:max-w-[75%]">
-                {msg.thinking && msg.thinking.length > 0 && (
-                  <div className="mb-2 space-y-0.5">
-                    {msg.thinking.map((t, i) => (
-                      <p key={i} className="text-[11px] text-muted/50 font-mono">{t}</p>
-                    ))}
+                {/* Thinking blocks */}
+                {msg.thinking && (
+                  <details className="mb-2" open={msg.isStreaming}>
+                    <summary className="text-[11px] text-muted/50 font-mono cursor-pointer hover:text-muted/70">
+                      💭 思考过程 {msg.isStreaming ? '' : `(${msg.thinking.length} 字)`}
+                    </summary>
+                    <div className="mt-1 pl-3 border-l-2 border-muted/20">
+                      <p className="text-[11px] text-muted/40 font-mono whitespace-pre-wrap leading-relaxed">
+                        {msg.thinking}
+                      </p>
+                    </div>
+                  </details>
+                )}
+
+                <div className={`bg-white border border-line rounded-2xl rounded-bl-md px-5 py-3 shadow-sm ${msg.isStreaming ? 'ring-1 ring-navy/10' : ''}`}>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {msg.content}
+                    {msg.isStreaming && <span className="inline-block w-2 h-4 bg-navy/60 ml-0.5 animate-pulse align-middle" />}
+                  </p>
+                  {msg.error && (
+                    <div className="mt-2 pt-2 border-t border-line/50 flex items-center gap-2">
+                      <p className="text-xs text-red-400 flex-1">{msg.error}</p>
+                      <button
+                        onClick={() => retryMessage(msg.id)}
+                        className="flex items-center gap-1 text-xs text-navy/60 hover:text-navy transition-colors"
+                      >
+                        <RefreshCw size={12} />
+                        重试
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* AI 建议记录 → 可点击 chip */}
+                {msg.suggestedRecord && !msg.recordSaved && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      onClick={() => saveSuggestedRecord(msg.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-navy/5 hover:bg-navy/10 border border-navy/10 transition-colors text-xs group/chip"
+                    >
+                      <Bookmark size={12} className="text-navy/40 group-hover/chip:text-navy transition-colors" />
+                      <span className="text-navy/60 font-medium">
+                        记下：{msg.suggestedRecord.title}
+                      </span>
+                      <span className="text-[10px] text-muted/40">
+                        {msg.suggestedRecord.tag}
+                      </span>
+                      <span className="text-[10px]">
+                        {{ colorful: '🎨', bright: '💡', dark: '🌑' }[msg.suggestedRecord.emotion]}
+                      </span>
+                    </button>
                   </div>
                 )}
-                <div className="bg-white border border-line rounded-2xl rounded-bl-md px-5 py-3 shadow-sm">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                </div>
-                {msg.role === 'system' && (
-                  <p className="text-[10px] text-muted/30 font-mono mt-1 ml-1 tracking-wider uppercase">
-                    模拟回复 · 非真实 AI
+                {msg.recordSaved && msg.suggestedRecord && (
+                  <p className="mt-1 text-[10px] text-green-500/60 font-mono">✅ 已记录「{msg.suggestedRecord.title}」</p>
+                )}
+
+                {/* Usage info */}
+                {msg.usage && (
+                  <p className="text-[10px] text-muted/30 font-mono mt-1 ml-1">
+                    {msg.usage.input_tokens} → {msg.usage.output_tokens} tokens
+                    {msg.usage.cache_read_input_tokens > 0 && (
+                      <span className="text-green-600/40"> · 缓存命中 {msg.usage.cache_read_input_tokens}</span>
+                    )}
                   </p>
                 )}
               </div>
@@ -118,7 +201,6 @@ export default function ChatView() {
 
       {/* ── Drag handle ── */}
       <div
-        ref={dragRef}
         onMouseDown={onMouseDown}
         className="flex-shrink-0 h-2 cursor-row-resize hover:bg-navy/5 transition-colors flex items-center justify-center group"
         title="拖动调节输入区高度"
@@ -156,19 +238,30 @@ export default function ChatView() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="说话就行…（Enter 发送，Shift+Enter 换行）"
+              placeholder={isStreaming ? '正在生成回复…' : '说话就行…（Enter 发送，Shift+Enter 换行）'}
               className="flex-1 resize-none bg-transparent border-none outline-none text-sm placeholder:text-muted/40 font-sans h-full"
+              disabled={isStreaming}
             />
-            <button
-              onClick={send}
-              disabled={!input.trim()}
-              className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-navy text-cream disabled:opacity-20 transition-opacity"
-            >
-              <Send size={16} />
-            </button>
+            {isStreaming ? (
+              <button
+                onClick={stopGenerating}
+                className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-red-400 text-white transition-colors hover:bg-red-500"
+                title="停止生成"
+              >
+                <Square size={14} />
+              </button>
+            ) : (
+              <button
+                onClick={send}
+                disabled={!input.trim()}
+                className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-navy text-cream disabled:opacity-20 transition-opacity"
+              >
+                <Send size={16} />
+              </button>
+            )}
           </div>
           <p className="text-[10px] text-muted/30 text-center mt-1.5 font-mono tracking-wider flex-shrink-0">
-            💡 你的世界编辑器 · 交互演示版 · AI 回复为关键词模拟
+            💡 你的世界编辑器 · 由 DeepSeek 驱动
           </p>
         </div>
       </div>

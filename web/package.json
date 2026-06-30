@@ -4,16 +4,21 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n server,client -c blue,green \"tsx server/index.ts\" \"vite\"",
+    "dev:client": "vite",
+    "dev:server": "tsx server/index.ts",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.1",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.0",
     "idb-keyval": "^6.2.5",
     "jszip": "^3.10.1",
     "lucide-react": "^1.21.0",
+    "openai": "^6.45.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",
@@ -24,11 +29,14 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^9.1.0",
     "oxlint": "^1.69.0",
+    "tsx": "^4.19.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.0"
   }
