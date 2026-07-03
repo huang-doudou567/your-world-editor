@@ -5,6 +5,7 @@ import { TAG_OPTIONS } from '../engine/types'
 import { getSystemStats } from '../engine/store'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { Edit3 } from 'lucide-react'
+import EmotionBar from './EmotionBar'
 
 const EMOTION_COLORS = { colorful: '#f0e0aa', bright: '#e1f3ff', dark: '#0f1829' }
 
@@ -37,6 +38,10 @@ export default function Dashboard() {
 
         {/* Emotion distribution */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* EmotionBar — 彩色/明亮/黑暗窗格 */}
+          <EmotionBar />
+
+          {/* Pie chart — 可视饼图 */}
           <div className="bg-white border border-line rounded-xl p-6">
             <h3 className="font-serif text-base text-navy mb-4">情绪窗格分布</h3>
             {emotionData.length > 0 ? (

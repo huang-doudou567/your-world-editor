@@ -6,6 +6,7 @@ import { usePatternStore } from '../stores/pattern-store'
 import { useStoryStore } from '../stores/story-store'
 import { seedIfFirstVisit } from '../data/seed'
 import { MessageCircle, LayoutDashboard, NotebookPen, Radar, BookOpen, Compass, Settings, History, HelpCircle } from 'lucide-react'
+import EmotionBar from './EmotionBar'
 
 const navItems: { view: ViewMode; label: string; icon: typeof MessageCircle }[] = [
   { view: 'chat', label: '对话', icon: MessageCircle },
@@ -48,7 +49,7 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
           <p className="text-[10px] tracking-[.2em] uppercase text-white/30 mt-1">Self-Cognition OS</p>
         </div>
 
-        <nav className="flex-1 py-3 overflow-y-auto">
+        <nav className="py-3 overflow-y-auto">
           {navItems.map(({ view: v, label, icon: Icon }) => (
             <button
               key={v}
@@ -61,6 +62,11 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
             </button>
           ))}
         </nav>
+
+        {/* 情绪窗格指示器 */}
+        <div className="border-t border-white/10">
+          <EmotionBar compact />
+        </div>
 
         <div className="p-4 border-t border-white/10 space-y-2">
           <button

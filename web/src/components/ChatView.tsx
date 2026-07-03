@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useChatStore } from '../stores/chat-store'
-import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus } from 'lucide-react'
+import { useJournalStore } from '../stores/journal-store'
+import { useUIStore } from '../stores/ui-store'
+import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote } from 'lucide-react'
 
 const PROMPTS = [
   '记一下，今天___',
@@ -15,12 +17,45 @@ const PROMPTS = [
   '整理一下最近的记录',
   'Merge 一下',
   '记个事：___',
+  '我意识到___',
+  '今天心情特别好___',
+  '又踩坑了：___',
+  '做了一个决定___',
+  '和老朋友聊了___',
+  '最近老是___',
+  '终于想通了___',
+  '这次我选择了___',
 ]
 
 export default function ChatView() {
   const { messages, input, setInput, send, isStreaming, stopGenerating, retryMessage, clearMessages, recordUserMessage, saveSuggestedRecord } = useChatStore()
+  const entries = useJournalStore(s => s.entries)
+  const setView = useUIStore(s => s.setView)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [promptIdx, setPromptIdx] = useState(0)
+
+  // ── 引用回复 ──
+  const [quoteRef, setQuoteRef] = useState<{ id: string; text: string } | null>(null)
+  const quoteMessage = (id: string, text: string) => {
+    setQuoteRef({ id, text })
+    const currentInput = useChatStore.getState().input
+    setInput(`> ${text.slice(0, 120)}${text.length > 120 ? '…' : ''}\n\n${currentInput}`)
+  }
+  const cancelQuote = () => { setQuoteRef(null) }
+
+  // ── 情绪窗格指示器数据 ──
+  const emotionSummary = useMemo(() => {
+    const dist = { colorful: 0, bright: 0, dark: 0 }
+    for (const e of entries) dist[e.emotion]++
+    const total = dist.colorful + dist.bright + dist.dark
+    if (total === 0) return null
+    const dominant = dist.colorful >= dist.bright && dist.colorful >= dist.dark ? 'colorful'
+      : dist.bright >= dist.dark ? 'bright' : 'dark'
+    const emoji = { colorful: '🎨', bright: '💡', dark: '🌑' }[dominant]
+    const label = { colorful: '彩色', bright: '明亮', dark: '黑暗' }[dominant]
+    const pct = Math.round((dist[dominant] / total) * 100)
+    return { dominant, emoji, label, pct, total, dist }
+  }, [entries])
 
   // ── Resizable input area ──
   const [inputHeight, setInputHeight] = useState(140)
@@ -80,23 +115,38 @@ export default function ChatView() {
   return (
     <div className="h-full flex flex-col">
       {/* Chat header */}
-      <div className="px-6 py-4 border-b border-line bg-cream/80 backdrop-blur flex-shrink-0 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-line bg-cream/80 backdrop-blur flex-shrink-0 flex items-center justify-between gap-4">
         <div>
           <p className="font-serif text-lg text-navy">对话 · 你的世界编辑器</p>
           <p className="text-xs text-muted mt-0.5">
             {isStreaming ? '正在生成回复…' : '说话就行，不用记命令。试试「记一下」「搜一下」「推演一下」'}
           </p>
         </div>
-        {hasMessages && (
-          <button
-            onClick={clearMessages}
-            className="flex items-center gap-1 text-xs text-muted/50 hover:text-muted transition-colors px-2 py-1 rounded-md hover:bg-navy/5"
-            title="新对话"
-          >
-            <Plus size={14} />
-            新对话
-          </button>
-        )}
+
+        <div className="flex items-center gap-3">
+          {/* 情绪窗格快速指示 */}
+          {emotionSummary && (
+            <button
+              onClick={() => setView('dashboard')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-line bg-white hover:border-navy/20 transition-all text-xs"
+              title={`${emotionSummary.total} 条记录 · 点击查看数据看板`}
+            >
+              <span className="text-sm">{emotionSummary.emoji}</span>
+              <span className="text-navy/70">{emotionSummary.label}窗格</span>
+              <span className="font-mono text-muted/50">{emotionSummary.pct}%</span>
+            </button>
+          )}
+          {hasMessages && (
+            <button
+              onClick={clearMessages}
+              className="flex items-center gap-1 text-xs text-muted/50 hover:text-muted transition-colors px-2 py-1 rounded-md hover:bg-navy/5"
+              title="新对话"
+            >
+              <Plus size={14} />
+              新对话
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -111,12 +161,14 @@ export default function ChatView() {
                 {/* 用户消息操作栏 */}
                 <div className="flex items-center gap-1 mt-1 justify-end">
                   {msg.recordSaved ? (
-                    <span className="text-[10px] text-green-500/60 font-mono">✅ 已记录</span>
+                    <span className="text-[10px] text-green-500/80 font-mono flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                      ✅ 已同步至流水账
+                    </span>
                   ) : (
                     <button
                       onClick={() => recordUserMessage(msg.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 text-[10px] text-muted/40 hover:text-navy font-mono px-1"
-                      title="记下这条"
+                      className="flex items-center gap-0.5 text-[10px] text-navy/60 hover:text-navy hover:bg-navy/5 font-mono px-2 py-0.5 rounded-full border border-line hover:border-navy/20 transition-all"
+                      title="手动记下这条到流水账"
                     >
                       <Bookmark size={10} />
                       记下
@@ -125,7 +177,7 @@ export default function ChatView() {
                 </div>
               </div>
             ) : (
-              <div className="max-w-[85%] md:max-w-[75%]">
+              <div className="max-w-[85%] md:max-w-[75%] group">
                 {/* Thinking blocks */}
                 {msg.thinking && (
                   <details className="mb-2" open={msg.isStreaming}>
@@ -156,6 +208,22 @@ export default function ChatView() {
                         重试
                       </button>
                     </div>
+                  )}
+                </div>
+
+                {/* AI 消息操作栏：引用 + 建议记录 */}
+                <div className="flex items-center gap-1 mt-1">
+                  {!msg.isStreaming && msg.content && (
+                    <button
+                      onClick={() => quoteMessage(msg.id, msg.content)}
+                      className={`flex items-center gap-0.5 text-[10px] text-muted/40 hover:text-navy font-mono px-2 py-0.5 rounded-full border border-transparent hover:border-line hover:bg-white transition-all ${
+                        quoteRef?.id === msg.id ? 'text-navy bg-navy/5 border-navy/20' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                      title="引用此回复到输入框"
+                    >
+                      <Quote size={10} />
+                      引用
+                    </button>
                   )}
                 </div>
 
@@ -231,6 +299,22 @@ export default function ChatView() {
               <ChevronRight size={14} />
             </button>
           </div>
+
+          {/* 引用预览条 */}
+          {quoteRef && (
+            <div className="flex items-center gap-2 max-w-3xl mx-auto w-full mb-1 px-3 py-1.5 bg-navy/5 rounded-lg border border-navy/10 animate-fadeIn">
+              <Quote size={12} className="text-navy/50 flex-shrink-0" />
+              <span className="text-xs text-navy/60 flex-1 truncate">
+                引用：{quoteRef.text.slice(0, 80)}{quoteRef.text.length > 80 ? '…' : ''}
+              </span>
+              <button
+                onClick={cancelQuote}
+                className="text-xs text-muted/50 hover:text-red-400 transition-colors flex-shrink-0 font-mono"
+              >
+                ✕ 取消引用
+              </button>
+            </div>
+          )}
 
           {/* Text input */}
           <div className="flex-1 flex items-end gap-3 max-w-3xl mx-auto w-full bg-white border border-line rounded-2xl px-4 py-3 focus-within:border-navy/30 transition-colors min-h-0">

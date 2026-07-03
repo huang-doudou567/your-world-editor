@@ -94,8 +94,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       role: 'user',
       content: input,
       timestamp: new Date().toISOString(),
-      // 4-7 分建议记录，≥8 分自动记录
-      suggestedRecord: intake.worthRecording && intake.score >= 4 && intake.score < 8
+      // ≥4 分全部建议记录（自动同步到流水账 + 看板）
+      suggestedRecord: intake.worthRecording && intake.score >= 4
         ? {
             title: intake.extractedTitle,
             tag: intake.suggestedTag || '',
@@ -104,8 +104,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         : undefined,
     };
 
-    // ── ≥8 分：自动写入流水账 ──
-    if (intake.worthRecording && intake.score >= 8) {
+    // ── ≥4 分：自动写入流水账，同步到看板 ──
+    if (intake.worthRecording && intake.score >= 4) {
       const emotion = classifyEmotion(input);
       useJournalStore.getState().addEntry({
         timestamp: now(),
@@ -116,11 +116,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         text: input,
         source: 'free_text',
         patternRefs: [],
-        confidence: 'high',
+        confidence: intake.score >= 8 ? 'high' : 'medium',
         grounded: true,
         merged: false,
       });
       userMsg.recordSaved = true;
+      // 同步刷新看板 & 模式数据
+      const { refresh: refreshPatterns } = usePatternStore.getState();
+      const { refresh: refreshStory } = useStoryStore.getState();
+      refreshPatterns();
+      refreshStory();
     }
 
     const assistantId = uid();
