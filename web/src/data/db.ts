@@ -94,6 +94,29 @@ export async function setMeta(key: string, value: string): Promise<void> {
   save('meta', all);
 }
 
+// ── Decision Answers（决策推演模块数据持久化）──
+export interface DecisionAnswerItem {
+  pathKey: string;
+  pathTitle: string;
+  prompt: string;
+  answer: string;
+  timestamp: string;
+}
+
+export async function loadDecisionAnswers(): Promise<DecisionAnswerItem[]> {
+  return load<DecisionAnswerItem[]>('decision_answers', []);
+}
+
+export async function saveDecisionAnswer(item: DecisionAnswerItem): Promise<void> {
+  const all = load<DecisionAnswerItem[]>('decision_answers', []);
+  all.push(item);
+  save('decision_answers', all);
+}
+
+export async function clearDecisionAnswers(): Promise<void> {
+  remove('decision_answers');
+}
+
 export async function clearAll(): Promise<void> {
   const keys = ['journal', 'patterns', 'story', 'decisions', 'meta'];
   for (const k of keys) remove(k);

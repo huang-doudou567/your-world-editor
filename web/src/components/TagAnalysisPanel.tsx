@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useJournalStore } from '../stores/journal-store'
 import { usePatternStore } from '../stores/pattern-store'
 import { useUIStore } from '../stores/ui-store'
 import { TAG_OPTIONS, type Event, type EventTag, type Pattern } from '../engine/types'
 import { TAG_FRAMEWORKS, type TagFramework } from '../engine/tag-frameworks'
+import { loadDecisionAnswers, type DecisionAnswerItem } from '../data/db'
 
 const EMOTION_EMOJI: Record<string, string> = { colorful: '🎨', bright: '💡', dark: '🌑' }
 
@@ -11,6 +12,9 @@ export default function TagAnalysisPanel() {
   const entries = useJournalStore(s => s.entries)
   const patterns = usePatternStore(s => s.patterns)
   const setView = useUIStore(s => s.setView)
+  const [decisionAnswers, setDecisionAnswers] = useState<DecisionAnswerItem[]>([])
+
+  useEffect(() => { loadDecisionAnswers().then(setDecisionAnswers) }, [])
 
   // 按标签分组
   const tagGroups = useMemo(() => {
@@ -83,6 +87,7 @@ export default function TagAnalysisPanel() {
               events={events}
               patterns={patterns}
               setView={setView}
+              decisionAnswers={framework.tag === '决策' ? decisionAnswers : []}
             />
           ))}
         </div>
@@ -97,14 +102,17 @@ function TagCard({
   events,
   patterns,
   setView,
+  decisionAnswers,
 }: {
   framework: TagFramework
   events: Event[]
   patterns: Pattern[]
   setView: (v: any) => void
+  decisionAnswers: DecisionAnswerItem[]
 }) {
   const tagOption = TAG_OPTIONS.find(t => t.value === framework.tag)!
   const total = events.length
+  const totalWithExtra = total + decisionAnswers.length
 
   // 情绪分布
   const emotionDist = { colorful: 0, bright: 0, dark: 0 }
@@ -156,6 +164,23 @@ function TagCard({
     return list
   }, [events, total, dominant, dominantPct, blindCount, positiveCount, linkedPatterns, recent.length, older])
 
+  // 决策推演附加洞察
+  const decisionInsights = useMemo(() => {
+    if (decisionAnswers.length === 0) return []
+    const paths = [...new Set(decisionAnswers.map(a => a.pathKey))]
+    const currentCount = decisionAnswers.filter(a => a.pathKey === 'current').length
+    const transitionCount = decisionAnswers.filter(a => a.pathKey === 'transition').length
+    const idealCount = decisionAnswers.filter(a => a.pathKey === 'ideal').length
+    const maxPath = currentCount >= transitionCount && currentCount >= idealCount ? '当前路径'
+      : transitionCount >= idealCount ? '转型路径' : '理想路径'
+    return [
+      { emoji: '🧭', text: `已记录 ${decisionAnswers.length} 条推演思考，覆盖 ${paths.length} 条路径（当前${currentCount}/转型${transitionCount}/理想${idealCount}）` },
+      { emoji: '📊', text: `${maxPath}思考最多，决定之前先推演，看清每条路的代价` },
+    ]
+  }, [decisionAnswers])
+
+  const allInsights = [...insights, ...decisionInsights]
+
   return (
     <div className="bg-white border border-line rounded-xl p-6 animate-fadeIn hover:border-navy/10 transition-colors">
       {/* 头部：emoji + 标题 + 计数 */}
@@ -163,7 +188,7 @@ function TagCard({
         <span className="text-xl">{tagOption.emoji}</span>
         <h3 className="font-serif text-base text-navy">{framework.title}</h3>
         <span className="ml-auto text-xs font-mono text-muted bg-cream px-2 py-0.5 rounded-full flex-shrink-0">
-          {total} 条
+          {totalWithExtra} 条
         </span>
       </div>
 
@@ -190,7 +215,7 @@ function TagCard({
       {/* 洞察列表 */}
       <div className="mb-4 space-y-1">
         <p className="text-[10px] font-mono text-muted/50 tracking-wider uppercase mb-1">自动洞察</p>
-        {insights.map((insight, i) => (
+        {allInsights.map((insight, i) => (
           <p key={i} className="text-xs text-navy/80 flex items-start gap-1.5 leading-relaxed">
             {insight.emoji && <span className="flex-shrink-0">{insight.emoji}</span>}
             <span>{insight.text}</span>
@@ -213,6 +238,35 @@ function TagCard({
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* 决策推演记录（仅决策标签） */}
+      {decisionAnswers.length > 0 && (
+        <div className="mb-4">
+          <p className="text-[10px] font-mono text-muted/50 tracking-wider uppercase mb-2">
+            推演记录 · {decisionAnswers.length} 条
+          </p>
+          <div className="space-y-1">
+            {decisionAnswers.slice(-4).reverse().map((item, i) => (
+              <div
+                key={i}
+                onClick={() => setView('simulate')}
+                className="flex items-start gap-2 text-xs py-1 border-b border-line/50 last:border-0 cursor-pointer hover:bg-cream/50 transition-colors rounded px-1 -mx-1"
+              >
+                <span className="text-[10px] font-mono text-muted/50 flex-shrink-0 mt-0.5">
+                  {item.timestamp.slice(0, 10).replace('2026-', '').replace('2025-', '')}
+                </span>
+                <span className="text-navy/70 flex-1 leading-relaxed truncate">{item.answer}</span>
+                <span className="text-[10px] text-muted/40 flex-shrink-0">{item.pathTitle.slice(2)}</span>
+              </div>
+            ))}
+          </div>
+          {decisionAnswers.length > 4 && (
+            <p className="text-[10px] text-muted/30 text-center mt-1">
+              及 {decisionAnswers.length - 4} 条更早的记录
+            </p>
+          )}
         </div>
       )}
 

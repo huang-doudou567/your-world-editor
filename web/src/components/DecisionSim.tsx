@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { usePatternStore } from '../stores/pattern-store'
 import { useStoryStore } from '../stores/story-store'
-import { Compass } from 'lucide-react'
+import { Compass, Trash2 } from 'lucide-react'
+import { loadDecisionAnswers, saveDecisionAnswer, clearDecisionAnswers } from '../data/db'
 
 const PATHS = [
   {
@@ -30,15 +31,49 @@ const PATHS = [
 export default function DecisionSim() {
   const [activePath, setActivePath] = useState('current')
   const [answers, setAnswers] = useState<Record<string, string[]>>({ current: [], transition: [], ideal: [] })
+  const [savedCount, setSavedCount] = useState(0)
   const [input, setInput] = useState('')
   const patterns = usePatternStore(s => s.patterns)
   const story = useStoryStore(s => s.sections)
 
+  // 加载已保存的决策数据
+  useEffect(() => {
+    loadDecisionAnswers().then(items => {
+      if (items.length === 0) return
+      const restored: Record<string, string[]> = { current: [], transition: [], ideal: [] }
+      for (const item of items) {
+        if (restored[item.pathKey]) restored[item.pathKey].push(item.answer)
+      }
+      setAnswers(restored)
+      setSavedCount(items.length)
+    })
+  }, [])
+
   const addAnswer = () => {
     if (!input.trim()) return
+    const path = PATHS.find(p => p.key === activePath)!
+    const promptIdx = answers[activePath].length
+    const prompt = path.prompts[promptIdx] || '自定义思考'
+
     setAnswers(prev => ({ ...prev, [activePath]: [...prev[activePath], input] }))
+    // 持久化保存
+    saveDecisionAnswer({
+      pathKey: activePath,
+      pathTitle: path.title,
+      prompt,
+      answer: input,
+      timestamp: new Date().toISOString(),
+    })
+    setSavedCount(c => c + 1)
     setInput('')
   }
+
+  const handleClear = useCallback(async () => {
+    if (!confirm('确定清空所有决策推演记录？此操作不可撤销。')) return
+    await clearDecisionAnswers()
+    setAnswers({ current: [], transition: [], ideal: [] })
+    setSavedCount(0)
+  }, [])
 
   const hasStory = story.some(s => s.body.trim().length > 0)
   const hasPatterns = patterns.length > 0
@@ -46,9 +81,19 @@ export default function DecisionSim() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-6 py-4 border-b border-line">
-        <p className="font-serif text-lg text-navy">决策推演</p>
-        <p className="text-xs text-muted mt-0.5">三条路径同时推演 · 看清每条路的终点和代价</p>
+      <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+        <div>
+          <p className="font-serif text-lg text-navy">决策推演</p>
+          <p className="text-xs text-muted mt-0.5">
+            三条路径同时推演 · 看清每条路的终点和代价
+            {savedCount > 0 && <span className="text-green-500 ml-2">· 已保存 {savedCount} 条推演记录</span>}
+          </p>
+        </div>
+        {savedCount > 0 && (
+          <button onClick={handleClear} className="text-xs text-muted/40 hover:text-red-400 transition-colors flex items-center gap-1">
+            <Trash2 size={12} /> 清空
+          </button>
+        )}
       </div>
 
       <div className="p-6 max-w-4xl">
@@ -98,7 +143,7 @@ export default function DecisionSim() {
             <textarea
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="写下你的思考……（模拟推演，不会保存到服务器）"
+              placeholder="写下你的思考……（自动保存到本地，刷新不丢失）"
               className="flex-1 resize-none bg-cream border border-line rounded-lg p-3 text-sm min-h-[60px] focus:outline-none focus:border-navy/30"
               rows={2}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addAnswer() } }}
