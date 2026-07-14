@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ViewMode = 'chat' | 'dashboard' | 'journal' | 'patterns' | 'story' | 'simulate' | 'onboarding' | 'recall' | 'guide';
+export type ViewMode = 'chat' | 'dashboard' | 'analysis' | 'journal' | 'patterns' | 'story' | 'simulate' | 'recall' | 'onboarding' | 'guide';
 
 interface UIState {
   view: ViewMode;

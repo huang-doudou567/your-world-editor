@@ -14,6 +14,7 @@ import DecisionSim from './components/DecisionSim'
 import OnboardingWizard from './components/OnboardingWizard'
 import RecallTimeline from './components/RecallTimeline'
 import UserGuide from './components/UserGuide'
+import TagAnalysisPanel from './components/TagAnalysisPanel'
 
 export default function App() {
   const refreshJournal = useJournalStore(s => s.refresh)
@@ -48,6 +49,7 @@ export default function App() {
   const renderView = () => {
     switch (view) {
       case 'dashboard': return <Dashboard />
+      case 'analysis': return <TagAnalysisPanel />
       case 'journal': return <JournalList />
       case 'patterns': return <PatternList />
       case 'story': return <StoryView />

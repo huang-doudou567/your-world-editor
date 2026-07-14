@@ -5,12 +5,13 @@ import { useJournalStore } from '../stores/journal-store'
 import { usePatternStore } from '../stores/pattern-store'
 import { useStoryStore } from '../stores/story-store'
 import { seedIfFirstVisit } from '../data/seed'
-import { MessageCircle, LayoutDashboard, NotebookPen, Radar, BookOpen, Compass, Settings, History, HelpCircle } from 'lucide-react'
+import { MessageCircle, LayoutDashboard, NotebookPen, Radar, BookOpen, Compass, Settings, History, HelpCircle, BarChart3 } from 'lucide-react'
 import EmotionBar from './EmotionBar'
 
 const navItems: { view: ViewMode; label: string; icon: typeof MessageCircle }[] = [
   { view: 'chat', label: '对话', icon: MessageCircle },
   { view: 'dashboard', label: '看板', icon: LayoutDashboard },
+  { view: 'analysis', label: '分析', icon: BarChart3 },
   { view: 'journal', label: '流水账', icon: NotebookPen },
   { view: 'recall', label: '回忆', icon: History },
   { view: 'patterns', label: '模式', icon: Radar },
