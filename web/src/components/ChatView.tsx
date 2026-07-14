@@ -3,7 +3,7 @@ import { useChatStore } from '../stores/chat-store'
 import { useJournalStore } from '../stores/journal-store'
 import { useUIStore } from '../stores/ui-store'
 import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote, Key, KeyRound } from 'lucide-react'
-import { getDeepSeekKey, setDeepSeekKey } from '../chat/api-client'
+import { getKey, setDeepSeekKey } from '../chat/api-client'
 
 const PROMPTS = [
   '记一下，今天___',
@@ -48,7 +48,7 @@ export default function ChatView() {
   const [showApiConfig, setShowApiConfig] = useState(false)
   const [apiConfigInput, setApiConfigInput] = useState('')
   const [testingKey, setTestingKey] = useState(false)
-  const apiConfigured = !!getDeepSeekKey()
+  const apiConfigured = !!getKey()
 
   const openApiConfig = () => {
     setApiConfigInput('')
@@ -57,7 +57,6 @@ export default function ChatView() {
   const saveApiConfig = async () => {
     const key = apiConfigInput.trim()
     if (!key) {
-      setDeepSeekKey('')
       setShowApiConfig(false)
       return
     }

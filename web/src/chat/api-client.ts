@@ -48,6 +48,23 @@ export function getDeepSeekKey(): string {
   } catch { return ''; }
 }
 
+const BUILTIN_KEY = 'REDACTED';
+
+/** 获取 DeepSeek API Key（优先 localStorage，其次内置 Key） */
+export function getKey(): string {
+  try {
+    const stored = localStorage.getItem('ywe_ds_key');
+    if (stored) return stored;
+  } catch { /* 不可用 */ }
+  return BUILTIN_KEY;
+}
+
+export function hasCustomKey(): boolean {
+  try {
+    return !!localStorage.getItem('ywe_ds_key');
+  } catch { return false; }
+}
+
 export function setDeepSeekKey(key: string): void {
   try {
     localStorage.setItem('ywe_ds_key', key);
@@ -59,7 +76,7 @@ export async function* streamChat(
   request: ChatRequest,
   signal?: AbortSignal,
 ): AsyncGenerator<StreamEvent, void, undefined> {
-  const apiKey = getDeepSeekKey();
+  const apiKey = getKey();
   if (!apiKey) {
     yield {
       type: 'error',
