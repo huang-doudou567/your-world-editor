@@ -42,7 +42,21 @@ export interface ChatRequest {
   contextBlock?: string;
 }
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
+/** 获取 API 基础地址（优先级：localStorage > 环境变量 > 默认 /api） */
+export function getApiBase(): string {
+  try {
+    const stored = localStorage.getItem('ywe_api_base');
+    if (stored) return stored;
+  } catch { /* localStorage 不可用 */ }
+  return (import.meta as any).env?.VITE_API_BASE_URL || '/api';
+}
+
+/** 设置 API 基础地址（持久化到 localStorage） */
+export function setApiBase(url: string): void {
+  try {
+    localStorage.setItem('ywe_api_base', url);
+  } catch { /* localStorage 不可用 */ }
+}
 
 /**
  * 流式聊天：POST /api/chat，返回 SSE 事件的 AsyncGenerator
@@ -52,19 +66,50 @@ export async function* streamChat(
   request: ChatRequest,
   signal?: AbortSignal,
 ): AsyncGenerator<StreamEvent, void, undefined> {
-  const response = await fetch(`${API_BASE}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBase()}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      signal,
+    });
+  } catch (fetchError: unknown) {
+    if (fetchError instanceof TypeError && fetchError.message.includes('Failed to fetch')) {
+      yield {
+        type: 'error',
+        message: '无法连接到后端服务。Render 服务可能已休眠或未部署。',
+        errorType: 'network_error',
+      };
+    } else if (fetchError instanceof DOMException && fetchError.name === 'AbortError') {
+      // 用户主动取消，不报错
+      return;
+    } else {
+      yield {
+        type: 'error',
+        message: `网络错误: ${fetchError instanceof Error ? fetchError.message : '未知错误'}`,
+        errorType: 'network_error',
+      };
+    }
+    return;
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => 'Unknown error');
     yield {
       type: 'error',
-      message: `服务器错误 (${response.status}): ${text}`,
+      message: `服务器错误 (${response.status}): ${text.slice(0, 200)}`,
       errorType: 'http_error',
+    };
+    return;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/event-stream') && !contentType.includes('application/json')) {
+    yield {
+      type: 'error',
+      message: '后端服务未部署或已休眠。请确认 Render 服务状态。',
+      errorType: 'backend_unavailable',
     };
     return;
   }

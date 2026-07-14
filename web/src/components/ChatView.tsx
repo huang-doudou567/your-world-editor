@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useChatStore } from '../stores/chat-store'
 import { useJournalStore } from '../stores/journal-store'
 import { useUIStore } from '../stores/ui-store'
-import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote } from 'lucide-react'
+import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote, Wifi, WifiOff } from 'lucide-react'
+import { getApiBase, setApiBase } from '../chat/api-client'
 
 const PROMPTS = [
   '记一下，今天___',
@@ -42,6 +43,28 @@ export default function ChatView() {
     setInput(`> ${text.slice(0, 120)}${text.length > 120 ? '…' : ''}\n\n${currentInput}`)
   }
   const cancelQuote = () => { setQuoteRef(null) }
+
+  // ── API 后端配置 ──
+  const [apiUrl, setApiUrlState] = useState(() => getApiBase())
+  const [showApiConfig, setShowApiConfig] = useState(false)
+  const [apiConfigInput, setApiConfigInput] = useState('')
+  const apiConfigured = useMemo(() => apiUrl !== '/api', [apiUrl])
+
+  const openApiConfig = () => {
+    setApiConfigInput(apiUrl === '/api' ? '' : apiUrl)
+    setShowApiConfig(true)
+  }
+  const saveApiConfig = () => {
+    const url = apiConfigInput.trim().replace(/\/+$/, '')
+    if (!url) {
+      setApiBase('/api')
+      setApiUrlState('/api')
+    } else {
+      setApiBase(url)
+      setApiUrlState(url)
+    }
+    setShowApiConfig(false)
+  }
 
   // ── 情绪窗格指示器数据 ──
   const emotionSummary = useMemo(() => {
@@ -124,6 +147,19 @@ export default function ChatView() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* API 后端状态 */}
+          <button
+            onClick={openApiConfig}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border text-xs transition-all ${
+              apiConfigured
+                ? 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100'
+                : 'border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100'
+            }`}
+            title={apiConfigured ? `API: ${apiUrl} — 点击修改` : '后端未配置 — 点击设置 Render URL'}
+          >
+            {apiConfigured ? <Wifi size={12} /> : <WifiOff size={12} />}
+            {apiConfigured ? '已连接' : '未配置'}
+          </button>
           {/* 情绪窗格快速指示 */}
           {emotionSummary && (
             <button
@@ -148,6 +184,44 @@ export default function ChatView() {
           )}
         </div>
       </div>
+
+      {/* API 配置弹窗 */}
+      {showApiConfig && (
+        <div className="px-6 py-3 border-b border-line bg-cream-2/80 animate-fadeIn">
+          <div className="max-w-3xl mx-auto flex items-center gap-3">
+            <WifiOff size={16} className="text-orange-500 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-navy font-medium">配置后端 API 地址</p>
+              <p className="text-[11px] text-muted mt-0.5">
+                输入 Render 服务 URL（如 https://your-world-editor-api.onrender.com）来连接 DeepSeek API。留空恢复默认。
+              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="text"
+                  value={apiConfigInput}
+                  onChange={e => setApiConfigInput(e.target.value)}
+                  placeholder="https://your-world-editor-api.onrender.com"
+                  className="flex-1 px-3 py-1.5 text-sm bg-white border border-line rounded-lg focus:outline-none focus:border-navy/30 font-mono"
+                  onKeyDown={e => { if (e.key === 'Enter') saveApiConfig() }}
+                  autoFocus
+                />
+                <button
+                  onClick={saveApiConfig}
+                  className="px-4 py-1.5 bg-navy text-cream text-sm rounded-lg hover:bg-navy-light transition-colors flex-shrink-0"
+                >
+                  保存
+                </button>
+                <button
+                  onClick={() => setShowApiConfig(false)}
+                  className="px-3 py-1.5 text-sm text-muted hover:text-navy transition-colors flex-shrink-0"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5">

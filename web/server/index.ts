@@ -7,7 +7,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import OpenAI from 'openai';
 
-const PORT = parseInt(process.env.SERVER_PORT || '3003', 10);
+const PORT = parseInt(process.env.PORT || process.env.SERVER_PORT || '3003', 10);
 const API_KEY = process.env.DEEPSEEK_API_KEY;
 const MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 
