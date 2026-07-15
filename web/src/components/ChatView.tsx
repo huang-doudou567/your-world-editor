@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useChatStore } from '../stores/chat-store'
 import { useJournalStore } from '../stores/journal-store'
 import { useUIStore } from '../stores/ui-store'
-import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote, Key, KeyRound, PencilLine } from 'lucide-react'
-import { getApiKey, setApiKey, hasCustomKey } from '../chat/api-client'
+import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote, Key, PencilLine, Wifi } from 'lucide-react'
+import { getApiBase, getApiKey, setApiKey, hasCustomKey } from '../chat/api-client'
 import { getExpiredMessages, cleanupChatMessages, type PersistedMessage } from '../data/db'
 
 const PROMPTS = [
@@ -255,18 +255,18 @@ export default function ChatView() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* DeepSeek API Key 状态 */}
+          {/* Deno 后端状态 / Key 配置 */}
           <button
             onClick={openApiConfig}
             className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border text-xs transition-all ${
               apiConfigured
-                ? 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100'
-                : 'border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100'
+                ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
+                : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100'
             }`}
-            title={apiConfigured ? 'DeepSeek Key 已设置 — 点击修改' : '未设置 API Key — 点击输入'}
+            title={apiConfigured ? '直连 DeepSeek — 点击修改' : '后端已连接 — 点击设置自定义 Key'}
           >
-            {apiConfigured ? <Key size={12} /> : <KeyRound size={12} />}
-            {apiConfigured ? 'Key 已设' : '未设Key'}
+            {apiConfigured ? <Key size={12} /> : <Wifi size={12} />}
+            {apiConfigured ? '直连' : '已连接'}
           </button>
           {/* 情绪窗格快速指示 */}
           {emotionSummary && (
@@ -293,24 +293,23 @@ export default function ChatView() {
         </div>
       </div>
 
-      {/* DeepSeek API Key 配置弹窗 */}
+      {/* API 配置弹窗 */}
       {showApiConfig && (
         <div className="px-6 py-3 border-b border-line bg-cream-2/80 animate-fadeIn">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <KeyRound size={16} className="text-orange-500 flex-shrink-0" />
+            <Wifi size={16} className="text-green-500 flex-shrink-0" />
             <div className="flex-1">
-              <p className="text-sm text-navy font-medium">设置 DeepSeek API Key</p>
+              <p className="text-sm text-navy font-medium">AI 后端状态 · Deno Deploy</p>
               <p className="text-[11px] text-muted mt-0.5">
-                输入后存在浏览器中。Key 由 GitHub Actions 构建时安全注入，源代码不可见。
-                <br />
-                <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener" className="text-blue-500 underline">去 DeepSeek 获取 Key →</a>
+                Key 在服务器环境变量安全存储，前端不可见。
+                如需用自己的 Key 直连 DeepSeek（避免共享额度），在下方输入。
               </p>
               <div className="flex items-center gap-2 mt-2">
                 <input
                   type="password"
                   value={apiConfigInput}
                   onChange={e => setApiConfigInput(e.target.value)}
-                  placeholder="sk-xxxxxxxxxxxxxxxx"
+                  placeholder={hasCustomKey() ? 'sk-xxxxxxxx' : '输入自定义 Key 切换直连（留空恢复后端）'}
                   className="flex-1 px-3 py-1.5 text-sm bg-white border border-line rounded-lg focus:outline-none focus:border-navy/30 font-mono"
                   onKeyDown={e => { if (e.key === 'Enter') saveApiConfig() }}
                   autoFocus
@@ -329,6 +328,10 @@ export default function ChatView() {
                   取消
                 </button>
               </div>
+              <p className="text-[10px] text-muted/50 mt-1.5">后端：{getApiBase()}</p>
+              <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 underline mt-0.5 inline-block">
+                去 DeepSeek 获取自己的 Key →
+              </a>
             </div>
           </div>
         </div>
