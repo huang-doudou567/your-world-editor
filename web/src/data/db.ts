@@ -117,7 +117,52 @@ export async function clearDecisionAnswers(): Promise<void> {
   remove('decision_answers');
 }
 
+// ── Chat Messages（对话持久化）──
+const CHAT_EXPIRY_DAYS = 7;
+
+export interface PersistedMessage {
+  id: string;
+  role: 'user' | 'ai' | 'system';
+  content: string;
+  thinking?: string;
+  timestamp: string;
+  error?: string;
+  suggestedRecord?: { title: string; tag: string; emotion: string };
+  recordSaved?: boolean;
+  usage?: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number };
+}
+
+export async function loadChatMessages(): Promise<PersistedMessage[]> {
+  const all = load<PersistedMessage[]>('chat_messages', []);
+  // 过滤7天前的消息
+  const cutoff = Date.now() - CHAT_EXPIRY_DAYS * 86400000;
+  const fresh = all.filter(m => new Date(m.timestamp).getTime() > cutoff);
+  if (fresh.length < all.length) {
+    save('chat_messages', fresh);
+  }
+  return fresh;
+}
+
+export async function saveChatMessages(messages: PersistedMessage[]): Promise<void> {
+  save('chat_messages', messages);
+}
+
+/** 检查是否有超过7天的消息将清理，返回过期消息列表供用户确认 */
+export async function getExpiredMessages(): Promise<PersistedMessage[]> {
+  const all = load<PersistedMessage[]>('chat_messages', []);
+  const cutoff = Date.now() - CHAT_EXPIRY_DAYS * 86400000;
+  return all.filter(m => new Date(m.timestamp).getTime() <= cutoff).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+/** 用户选择保留的消息ID列表，其余过期消息全部删除 */
+export async function cleanupChatMessages(keepIds: string[]): Promise<void> {
+  const all = load<PersistedMessage[]>('chat_messages', []);
+  const cutoff = Date.now() - CHAT_EXPIRY_DAYS * 86400000;
+  const keep: PersistedMessage[] = all.filter(m => new Date(m.timestamp).getTime() > cutoff || keepIds.includes(m.id));
+  save('chat_messages', keep);
+}
+
 export async function clearAll(): Promise<void> {
-  const keys = ['journal', 'patterns', 'story', 'decisions', 'meta'];
+  const keys = ['journal', 'patterns', 'story', 'decisions', 'meta', 'chat_messages'];
   for (const k of keys) remove(k);
 }

@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useChatStore } from '../stores/chat-store'
 import { useJournalStore } from '../stores/journal-store'
 import { useUIStore } from '../stores/ui-store'
-import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote, Wifi, WifiOff } from 'lucide-react'
+import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote, Wifi, WifiOff, PencilLine } from 'lucide-react'
 import { getApiBase, setApiBase } from '../chat/api-client'
+import { getExpiredMessages, cleanupChatMessages, type PersistedMessage } from '../data/db'
 
 const PROMPTS = [
   '记一下，今天___',
@@ -29,7 +30,7 @@ const PROMPTS = [
 ]
 
 export default function ChatView() {
-  const { messages, input, setInput, send, isStreaming, stopGenerating, retryMessage, clearMessages, recordUserMessage, saveSuggestedRecord } = useChatStore()
+  const { messages, input, setInput, send, isStreaming, stopGenerating, retryMessage, clearMessages, recordUserMessage, saveSuggestedRecord, initMessages, quoteTextToJournal } = useChatStore()
   const entries = useJournalStore(s => s.entries)
   const setView = useUIStore(s => s.setView)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -80,6 +81,55 @@ export default function ChatView() {
     const pct = Math.round((dist[dominant] / total) * 100)
     return { dominant, emoji, label, pct, total, dist }
   }, [entries])
+
+  // ── 初始化：加载历史对话 + 过期清理检查 ──
+  const [showCleanup, setShowCleanup] = useState(false)
+  const [expiredMsgs, setExpiredMsgs] = useState<PersistedMessage[]>([])
+  const [keepIds, setKeepIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    initMessages()
+    getExpiredMessages().then(exps => {
+      if (exps.length > 0) {
+        setExpiredMsgs(exps)
+        setKeepIds(new Set(exps.map(m => m.id)))
+        setShowCleanup(true)
+      }
+    })
+  }, [])
+
+  const doCleanup = () => {
+    cleanupChatMessages([...keepIds]).then(() => {
+      setShowCleanup(false)
+      initMessages()
+    })
+  }
+  const toggleKeep = (id: string) => {
+    const next = new Set(keepIds)
+    next.has(id) ? next.delete(id) : next.add(id)
+    setKeepIds(next)
+  }
+  const selectAllKeep = () => setKeepIds(new Set(expiredMsgs.map(m => m.id)))
+  const deselectAllKeep = () => setKeepIds(new Set())
+
+  // ── 文本选取引用为记录 ──
+  const [selectionPopup, setSelectionPopup] = useState<{ msgId: string; text: string; x: number; y: number } | null>(null)
+  const handleTextSelection = (msgId: string, e: React.MouseEvent) => {
+    const sel = window.getSelection()
+    const text = sel?.toString().trim()
+    if (!text || text.length < 5) { setSelectionPopup(null); return }
+    // 确保选中文字在 AI 消息区域内
+    const el = e.currentTarget as HTMLElement
+    if (sel && el.contains(sel.anchorNode)) {
+      setSelectionPopup({ msgId, text, x: e.clientX, y: e.clientY })
+    }
+  }
+  const handleQuoteSelection = () => {
+    if (!selectionPopup) return
+    quoteTextToJournal(selectionPopup.text, selectionPopup.msgId)
+    setSelectionPopup(null)
+    window.getSelection()?.removeAllRanges()
+  }
 
   // ── Resizable input area ──
   const [inputHeight, setInputHeight] = useState(140)
@@ -138,6 +188,52 @@ export default function ChatView() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* ── 过期对话清理弹窗 ── */}
+      {showCleanup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowCleanup(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full mx-4 p-6 animate-slideUp" onClick={e => e.stopPropagation()}>
+            <p className="font-serif text-lg text-navy mb-2">对话清理提醒</p>
+            <p className="text-sm text-muted mb-4">
+              以下 {expiredMsgs.length} 条对话已超过 7 天。默认勾选所有对话，<strong>取消勾选你希望留存的对话</strong>，点击确认后未勾选的将被永久删除。
+            </p>
+            <div className="max-h-60 overflow-y-auto space-y-1 mb-4 border border-line rounded-lg">
+              {expiredMsgs.slice(0, 50).map(m => (
+                <label key={m.id} className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-cream/50 text-xs ${keepIds.has(m.id) ? '' : 'opacity-40 line-through'}`}>
+                  <input type="checkbox" checked={keepIds.has(m.id)} onChange={() => toggleKeep(m.id)} className="accent-navy" />
+                  <span className="text-muted font-mono">{m.timestamp.slice(0, 10)}</span>
+                  <span className="text-navy/60 truncate">{m.content.slice(0, 50)}</span>
+                  <span className="text-muted/40 ml-auto flex-shrink-0">{m.role === 'user' ? '👤' : '🤖'}</span>
+                </label>
+              ))}
+              {expiredMsgs.length > 50 && <p className="text-[10px] text-muted text-center py-2">... 及 {expiredMsgs.length - 50} 条更早记录</p>}
+            </div>
+            <div className="flex items-center gap-2 mb-4">
+              <button onClick={selectAllKeep} className="text-[10px] text-muted hover:text-navy px-2 py-1 rounded border border-line">全选</button>
+              <button onClick={deselectAllKeep} className="text-[10px] text-muted hover:text-navy px-2 py-1 rounded border border-line">全不选</button>
+              <span className="text-[10px] text-muted ml-auto">{keepIds.size}/{expiredMsgs.length} 条留存</span>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowCleanup(false)} className="px-4 py-2 text-sm text-muted border border-line rounded-lg">稍后处理</button>
+              <button onClick={doCleanup} className="px-4 py-2 text-sm bg-navy text-cream rounded-lg hover:bg-navy-light">
+                确认清理（删除 {expiredMsgs.length - keepIds.size} 条）
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 文本选取引用浮层 ── */}
+      {selectionPopup && (
+        <button
+          onClick={handleQuoteSelection}
+          className="fixed z-50 flex items-center gap-1.5 px-3 py-1.5 bg-navy text-cream rounded-full shadow-lg text-xs animate-fadeIn hover:bg-navy-light transition-colors"
+          style={{ left: selectionPopup.x, top: selectionPopup.y + 16 }}
+        >
+          <PencilLine size={12} />
+          引用为事件记录
+        </button>
+      )}
+
       {/* Chat header */}
       <div className="px-6 py-4 border-b border-line bg-cream/80 backdrop-blur flex-shrink-0 flex items-center justify-between gap-4">
         <div>
@@ -268,7 +364,7 @@ export default function ChatView() {
                 )}
 
                 <div className={`bg-white border border-line rounded-2xl rounded-bl-md px-5 py-3 shadow-sm ${msg.isStreaming ? 'ring-1 ring-navy/10' : ''}`}>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap select-text" onMouseUp={(e) => !msg.isStreaming && handleTextSelection(msg.id, e)}>
                     {msg.content}
                     {msg.isStreaming && <span className="inline-block w-2 h-4 bg-navy/60 ml-0.5 animate-pulse align-middle" />}
                   </p>
@@ -286,7 +382,7 @@ export default function ChatView() {
                   )}
                 </div>
 
-                {/* AI 消息操作栏：引用 + 建议记录 */}
+                {/* AI 消息操作栏：引用 + 已选取引用标记 */}
                 <div className="flex items-center gap-1 mt-1">
                   {!msg.isStreaming && msg.content && (
                     <button
@@ -299,6 +395,12 @@ export default function ChatView() {
                       <Quote size={10} />
                       引用
                     </button>
+                  )}
+                  {msg.quotedRef && (
+                    <span className="text-[10px] text-green-500/70 font-mono bg-green-50 px-2 py-0.5 rounded-full border border-green-100 flex items-center gap-1"
+                      title={`已选取引用：${msg.quotedRef}`}>
+                      <PencilLine size={9} /> 已引用至流水账
+                    </span>
                   )}
                 </div>
 

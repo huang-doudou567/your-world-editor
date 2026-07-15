@@ -137,6 +137,8 @@ export interface ChatMessage {
   error?: string;
   suggestedRecord?: SuggestedRecord;
   recordSaved?: boolean;
+  /** 用户手动选取引用的AI回复文本 */
+  quotedRef?: string;
   usage?: {
     input_tokens: number;
     output_tokens: number;
