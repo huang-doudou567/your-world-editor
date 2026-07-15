@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useChatStore } from '../stores/chat-store'
 import { useJournalStore } from '../stores/journal-store'
 import { useUIStore } from '../stores/ui-store'
-import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote, Wifi, WifiOff, PencilLine } from 'lucide-react'
-import { getApiBase, setApiBase } from '../chat/api-client'
+import { Bookmark, Send, ChevronLeft, ChevronRight, Square, RefreshCw, Plus, Quote, Key, KeyRound, PencilLine } from 'lucide-react'
+import { getApiKey, setApiKey, hasCustomKey } from '../chat/api-client'
 import { getExpiredMessages, cleanupChatMessages, type PersistedMessage } from '../data/db'
 
 const PROMPTS = [
@@ -45,26 +45,38 @@ export default function ChatView() {
   }
   const cancelQuote = () => { setQuoteRef(null) }
 
-  // ── 后端 API 地址配置 ──
+  // ── DeepSeek API Key 配置 ──
   const [showApiConfig, setShowApiConfig] = useState(false)
   const [apiConfigInput, setApiConfigInput] = useState('')
-  const apiConfigured = useMemo(() => {
-    const base = getApiBase()
-    return base !== '/api' && base.length > 0
-  }, [])
+  const [testingKey, setTestingKey] = useState(false)
+  const apiConfigured = !!getApiKey()
 
   const openApiConfig = () => {
-    const current = getApiBase()
-    setApiConfigInput(current === '/api' ? '' : current)
+    setApiConfigInput(hasCustomKey() ? getApiKey() : '')
     setShowApiConfig(true)
   }
-  const saveApiConfig = () => {
-    const url = apiConfigInput.trim().replace(/\/+$/, '')
-    if (!url) {
-      setApiBase('/api')
-    } else {
-      setApiBase(url)
+  const saveApiConfig = async () => {
+    const key = apiConfigInput.trim()
+    if (!key) {
+      setApiKey('')
+      setShowApiConfig(false)
+      return
     }
+    if (!key.startsWith('sk-')) {
+      setApiConfigInput('')
+      return
+    }
+    setTestingKey(true)
+    try {
+      const res = await fetch('https://api.deepseek.com/v1/models', {
+        headers: { 'Authorization': `Bearer ${key}` },
+        signal: AbortSignal.timeout(8000),
+      })
+      setTestingKey(false)
+      if (res.ok) { setApiKey(key); setShowApiConfig(false); return }
+    } catch { /* 网络问题，仍保存 */ }
+    setTestingKey(false)
+    setApiKey(key)
     setShowApiConfig(false)
   }
 
@@ -252,10 +264,10 @@ export default function ChatView() {
                 ? 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100'
                 : 'border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100'
             }`}
-            title={apiConfigured ? '后端已配置 — 点击修改' : '未配置后端 — 点击设置 HF Spaces 地址'}
+            title={apiConfigured ? 'DeepSeek Key 已设置 — 点击修改' : '未设置 API Key — 点击输入'}
           >
-            {apiConfigured ? <Wifi size={12} /> : <WifiOff size={12} />}
-            {apiConfigured ? '已连接' : '未配置'}
+            {apiConfigured ? <Key size={12} /> : <KeyRound size={12} />}
+            {apiConfigured ? 'Key 已设' : '未设Key'}
           </button>
           {/* 情绪窗格快速指示 */}
           {emotionSummary && (
@@ -282,31 +294,34 @@ export default function ChatView() {
         </div>
       </div>
 
-      {/* 后端地址配置弹窗 */}
+      {/* DeepSeek API Key 配置弹窗 */}
       {showApiConfig && (
         <div className="px-6 py-3 border-b border-line bg-cream-2/80 animate-fadeIn">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <WifiOff size={16} className="text-orange-500 flex-shrink-0" />
+            <KeyRound size={16} className="text-orange-500 flex-shrink-0" />
             <div className="flex-1">
-              <p className="text-sm text-navy font-medium">配置后端 API 地址</p>
+              <p className="text-sm text-navy font-medium">设置 DeepSeek API Key</p>
               <p className="text-[11px] text-muted mt-0.5">
-                输入 HF Spaces 服务地址（如 https://xxxx.hf.space），留空恢复默认。API Key 在后端安全存储，前端不可见。
+                输入后存在浏览器中。Key 由 GitHub Actions 构建时安全注入，源代码不可见。
+                <br />
+                <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener" className="text-blue-500 underline">去 DeepSeek 获取 Key →</a>
               </p>
               <div className="flex items-center gap-2 mt-2">
                 <input
-                  type="text"
+                  type="password"
                   value={apiConfigInput}
                   onChange={e => setApiConfigInput(e.target.value)}
-                  placeholder="https://xxxx.hf.space"
+                  placeholder="sk-xxxxxxxxxxxxxxxx"
                   className="flex-1 px-3 py-1.5 text-sm bg-white border border-line rounded-lg focus:outline-none focus:border-navy/30 font-mono"
                   onKeyDown={e => { if (e.key === 'Enter') saveApiConfig() }}
                   autoFocus
                 />
                 <button
                   onClick={saveApiConfig}
-                  className="px-4 py-1.5 bg-navy text-cream text-sm rounded-lg hover:bg-navy-light transition-colors flex-shrink-0"
+                  disabled={testingKey}
+                  className="px-4 py-1.5 bg-navy text-cream text-sm rounded-lg hover:bg-navy-light transition-colors flex-shrink-0 disabled:opacity-50"
                 >
-                  保存
+                  {testingKey ? '验证中…' : '保存'}
                 </button>
                 <button
                   onClick={() => setShowApiConfig(false)}
