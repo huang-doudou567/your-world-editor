@@ -130,10 +130,9 @@ export default function ChatView() {
     const sel = window.getSelection()
     const text = sel?.toString().trim()
     if (!text || text.length < 5) { setSelectionPopup(null); return }
-    // 确保选中文字在 AI 消息区域内
     const el = e.currentTarget as HTMLElement
     if (sel && el.contains(sel.anchorNode)) {
-      setSelectionPopup({ msgId, text, x: e.clientX, y: e.clientY })
+      setSelectionPopup({ msgId: msgId || '', text, x: e.clientX, y: e.clientY })
     }
   }
   const handleQuoteSelection = () => {
@@ -237,7 +236,7 @@ export default function ChatView() {
       {/* ── 文本选取引用浮层 ── */}
       {selectionPopup && (
         <button
-          onClick={handleQuoteSelection}
+          onPointerDown={(e) => { e.preventDefault(); handleQuoteSelection() }}
           className="fixed z-50 flex items-center gap-1.5 px-3 py-1.5 bg-navy text-cream rounded-full shadow-lg text-xs animate-fadeIn hover:bg-navy-light transition-colors"
           style={{ left: selectionPopup.x, top: selectionPopup.y + 16 }}
         >
@@ -341,6 +340,12 @@ export default function ChatView() {
           <div key={msg.id} className={`animate-fadeIn ${msg.role === 'user' ? 'flex justify-end' : ''}`}>
             {msg.role === 'user' ? (
               <div className="max-w-[85%] md:max-w-[70%] group relative">
+                {/* 用户时间戳 */}
+                <div className="flex items-center gap-1.5 justify-end mb-1">
+                  <span className="text-[10px] font-mono text-muted/40">
+                    {msg.timestamp ? new Date(msg.timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                  </span>
+                </div>
                 <div className="bg-navy text-cream rounded-2xl rounded-br-md px-5 py-3">
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                 </div>
@@ -364,6 +369,13 @@ export default function ChatView() {
               </div>
             ) : (
               <div className="max-w-[85%] md:max-w-[75%] group">
+                {/* AI 时间戳 */}
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[10px] font-mono text-muted/40">
+                    AI · {msg.timestamp ? new Date(msg.timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                    {msg.usage && <span className="ml-2 text-muted/30">{msg.usage.input_tokens + msg.usage.output_tokens} tokens</span>}
+                  </span>
+                </div>
                 {/* Thinking blocks */}
                 {msg.thinking && (
                   <details className="mb-2" open={msg.isStreaming}>
@@ -441,16 +453,6 @@ export default function ChatView() {
                 )}
                 {msg.recordSaved && msg.suggestedRecord && (
                   <p className="mt-1 text-[10px] text-green-500/60 font-mono">✅ 已记录「{msg.suggestedRecord.title}」</p>
-                )}
-
-                {/* Usage info */}
-                {msg.usage && (
-                  <p className="text-[10px] text-muted/30 font-mono mt-1 ml-1">
-                    {msg.usage.input_tokens} → {msg.usage.output_tokens} tokens
-                    {msg.usage.cache_read_input_tokens > 0 && (
-                      <span className="text-green-600/40"> · 缓存命中 {msg.usage.cache_read_input_tokens}</span>
-                    )}
-                  </p>
                 )}
               </div>
             )}
