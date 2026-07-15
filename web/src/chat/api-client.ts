@@ -40,13 +40,13 @@ export interface ChatRequest {
   contextBlock?: string;
 }
 
-/** 获取后端 API 基础地址（localStorage > 环境变量 > 默认 HF Spaces） */
+/** 获取后端 API 基础地址（localStorage > 环境变量 > 默认 Vercel） */
 export function getApiBase(): string {
   try {
     const stored = localStorage.getItem('ywe_api_base');
     if (stored) return stored;
   } catch { /* localStorage 不可用 */ }
-  return (import.meta as any).env?.VITE_API_BASE_URL || '/api';
+  return (import.meta as any).env?.VITE_API_BASE_URL || 'https://ywe-api.vercel.app/api';
 }
 
 /** 设置后端 API 基础地址（持久化到 localStorage） */
